@@ -1,0 +1,45 @@
+project:
+  name: ConnectRoute 2.0
+  random_seed: 42
+
+data:
+  measurements_csv: data/raw/SRFG-v1.csv
+  processed_measurements: data/processed/salzburg_measurements.parquet
+  results_directory: results
+
+validation:
+  corridor: Salzburg highway
+  projected_crs: EPSG:32633
+  block_length_m: 2000
+  buffer_m: 500
+  folds: 5
+  centerline_bin_width_m: 25
+
+prediction:
+  target: rsrp_dbm
+  frequency_mhz: 1800
+  frequency_sensitivity_mhz: [800, 2600]
+  tower_antenna_height_m: 30
+  receiver_height_m: 1.5
+  nearest_towers: 3
+  tower_sample_count_minimum: 5
+  cost231_metropolitan_correction: false
+  rma_average_building_height_m: 5
+  rma_street_width_m: 20
+
+models:
+  tuning_trials: 50
+  inner_folds: 3
+  n_estimators: 300
+  n_jobs: null
+  primary_outage_threshold_dbm: -110
+  secondary_outage_threshold_dbm: -100
+
+terrain:
+  dem_source: Copernicus DEM GLO-30 Public
+  source_dem: data/raw/Copernicus_DSM_COG_10_N47_00_E013_00_DEM.tif
+  dem_resolution_m: 30
+  dem_margin_m: 1000
+  profile_spacing_m: 30
+  effective_earth_radius_factor: 1.3333333333333333
+  batch_size: 10000

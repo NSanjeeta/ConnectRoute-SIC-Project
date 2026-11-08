@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "connectroute"
+version = "0.1.0"
+description = "Uncertainty-aware route-level LTE signal prediction"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "geopandas>=1.0,<2",
+    "lightgbm>=4.5,<5",
+    "matplotlib>=3.9,<4",
+    "numpy>=1.26,<3",
+    "optuna>=4,<5",
+    "pandas>=2.2,<4",
+    "pyarrow>=17,<30",
+    "pyproj>=3.7,<4",
+    "PyYAML>=6,<7",
+    "rasterio>=1.4,<2",
+    "scikit-learn>=1.5,<2",
+    "scipy>=1.13,<2",
+    "shapely>=2,<3",
+    "xgboost>=2.1,<4",
+]
+
+[project.optional-dependencies]
+dev = ["debugpy>=1.8,<2", "pytest>=8,<10"]
+app = [
+    "folium>=0.18,<1",
+    "requests>=2.32,<3",
+    "streamlit>=1.49,<2",
+]
+
+[project.scripts]
+connectroute-ingest = "connectroute.ingest:main"
+connectroute-tower-ingest = "connectroute.tower_ingest:main"
+connectroute-geometry = "connectroute.geometry:main"
+connectroute-tower-match = "connectroute.towers:main"
+connectroute-terrain = "connectroute.terrain:main"
+connectroute-propagation = "connectroute.propagation:main"
+connectroute-models = "connectroute.models:main"
+connectroute-evaluate = "connectroute.evaluate:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
