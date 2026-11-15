@@ -14,6 +14,13 @@ import streamlit as st
 from pyproj import CRS
 
 from connectroute.evaluate import build_benchmark_tables
+from connectroute.dashboard import (
+    add_dashboard_fields,
+    find_hotspots,
+    profile_metrics,
+    recommend_tower_sites,
+    score_routes,
+)
 from connectroute.route_predict import (
     DEFAULT_SALZBURG_FEATURES,
     DEFAULT_SALZBURG_PREDICTIONS,
@@ -37,34 +44,113 @@ st.markdown(
     """
     <style>
     :root {
-        --cr-ink: #17243b;
-        --cr-muted: #63718a;
-        --cr-line: #e4eaf2;
-        --cr-blue: #2563eb;
-        --cr-teal: #0f9f9a;
-        --cr-surface: #f5f8fc;
+        --cr-ink: #202124;
+        --cr-muted: #5f6368;
+        --cr-line: #dadce0;
+        --cr-blue: #1a73e8;
+        --cr-teal: #188038;
+        --cr-surface: #f8f9fa;
+        --cr-lilac: #7c3aed;
     }
     .stApp {
         background:
-            radial-gradient(ellipse at 86% 0%, rgba(37, 99, 235, .09), transparent 34rem),
-            #f7f9fc;
+            radial-gradient(ellipse at 78% 10%, rgba(170, 221, 239, .84) 0 5%, transparent 5.4% 18%),
+            radial-gradient(ellipse at 8% 82%, rgba(176, 224, 194, .9) 0 10%, transparent 10.5% 25%),
+            radial-gradient(ellipse at 57% 69%, rgba(185, 228, 199, .88) 0 8%, transparent 8.5% 20%),
+            radial-gradient(ellipse at 36% 29%, rgba(174, 221, 187, .72) 0 6%, transparent 6.5% 18%),
+            linear-gradient(115deg, rgba(255,255,255,.42), rgba(244,239,222,.2)),
+            repeating-linear-gradient(25deg, transparent 0 108px, rgba(139, 158, 183, .6) 109px 111px, rgba(255,255,255,.65) 112px 114px, transparent 115px 220px),
+            repeating-linear-gradient(155deg, transparent 0 166px, rgba(192, 151, 127, .46) 167px 169px, rgba(255,255,255,.62) 170px 172px, transparent 173px 310px),
+            linear-gradient(180deg, #dce8d7 0%, #f3eddf 48%, #d7e7d5 100%);
         color: var(--cr-ink);
     }
-    [data-testid="stHeader"] { background: rgba(247, 249, 252, .88); }
+    .stApp::before {
+        background:
+            linear-gradient(72deg, transparent 0 43%, rgba(255,255,255,.9) 43.1% 43.32%, rgba(121,151,192,.72) 43.4% 43.7%, rgba(255,255,255,.9) 43.8% 44%, transparent 44.1%),
+            linear-gradient(164deg, transparent 0 62%, rgba(255,255,255,.88) 62.1% 62.32%, rgba(126,154,190,.7) 62.4% 62.7%, rgba(255,255,255,.88) 62.8% 63%, transparent 63.1%),
+            radial-gradient(ellipse at 25% 27%, rgba(105, 198, 226, .72) 0 3%, transparent 3.5% 12%),
+            radial-gradient(ellipse at 73% 80%, rgba(86, 164, 112, .48) 0 10%, transparent 10.5% 19%),
+            repeating-linear-gradient(6deg, transparent 0 285px, rgba(117, 141, 181, .62) 286px 288px, transparent 289px 430px);
+        content: "";
+        inset: 0;
+        opacity: .95;
+        pointer-events: none;
+        position: fixed;
+        z-index: 0;
+    }
+    [data-testid="stAppViewContainer"] > .main {
+        position: relative;
+        z-index: 1;
+    }
+    [data-testid="stHeader"] {
+        background: transparent;
+        height: 0;
+        visibility: hidden;
+    }
     [data-testid="stMain"] .block-container {
         max-width: 1440px;
-        padding: 2rem clamp(1rem, 3vw, 3rem) 4rem;
+        padding: 4.2rem clamp(1rem, 3vw, 3rem) 4rem;
     }
     [data-testid="stMarkdownContainer"] p { color: var(--cr-muted); }
     .cr-eyebrow {
+        align-items: center;
         color: #2563eb;
+        display: flex;
+        gap: .55rem;
         font-size: .75rem;
         font-weight: 800;
         letter-spacing: .16em;
         text-transform: uppercase;
         margin: 0 0 .65rem;
     }
+    .cr-brandbar {
+        align-items: center;
+        animation: cr-rise .35s ease-out both;
+        background: rgba(255, 255, 255, .96);
+        border: 1px solid #dadce0;
+        border-radius: 999px;
+        box-shadow: 0 6px 20px rgba(49, 77, 111, .08);
+        display: flex;
+        gap: .75rem;
+        margin: 0 0 1.55rem;
+        padding: .45rem .9rem .45rem .5rem;
+        width: fit-content;
+    }
+    .cr-brandmark {
+        align-items: center;
+        background: linear-gradient(135deg, #1a73e8, #188038);
+        border-radius: 12px;
+        box-shadow: 0 8px 18px rgba(37, 99, 235, .2);
+        color: #fff;
+        display: flex;
+        font-size: 1.1rem;
+        font-weight: 850;
+        height: 2.45rem;
+        justify-content: center;
+        letter-spacing: -.04em;
+        width: 2.45rem;
+    }
+    .cr-brandname {
+        color: var(--cr-ink);
+        font-size: 1.15rem;
+        font-weight: 850;
+        letter-spacing: -.04em;
+    }
+    .cr-brandtag {
+        color: var(--cr-muted);
+        font-size: .73rem;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+    }
+    .cr-eyebrow::before {
+        background: linear-gradient(90deg, var(--cr-blue), var(--cr-teal));
+        border-radius: 999px;
+        content: "";
+        height: .45rem;
+        width: 2.2rem;
+    }
     .cr-title {
+        animation: cr-rise .55s ease-out both;
         color: var(--cr-ink);
         font-size: clamp(2.1rem, 4vw, 3.35rem);
         font-weight: 800;
@@ -73,38 +159,73 @@ st.markdown(
         margin: 0;
     }
     .cr-subtitle {
+        animation: cr-rise .7s ease-out both;
         color: var(--cr-muted);
         font-size: 1.04rem;
         line-height: 1.6;
         margin: .8rem 0 1.35rem;
         max-width: 760px;
     }
-    .cr-status {
-        align-items: center;
-        background: #fff8e8;
-        border: 1px solid #f4dda9;
-        border-radius: 12px;
-        color: #805817;
-        display: flex;
-        font-size: .9rem;
-        gap: .65rem;
-        line-height: 1.45;
-        margin: .75rem 0 1.25rem;
-        padding: .8rem 1rem;
-    }
-    .cr-status-dot {
-        background: #e3a328;
-        border-radius: 50%;
-        flex: 0 0 .55rem;
-        height: .55rem;
-    }
     [data-testid="stForm"] {
-        background: #fff;
+        animation: cr-rise .85s ease-out both;
+        background: rgba(255, 255, 255, .93);
+        backdrop-filter: blur(7px);
         border: 1px solid var(--cr-line);
         border-radius: 18px;
-        box-shadow: 0 10px 28px rgba(27, 45, 79, .055);
+        box-shadow: 0 8px 26px rgba(60, 64, 67, .22);
+        margin-top: -.25rem;
         padding: 1.2rem 1.3rem .5rem;
     }
+    .cr-control-card {
+        background: rgba(255, 255, 255, .94);
+        backdrop-filter: blur(7px);
+        border: 1px solid #dadce0;
+        border-radius: 16px;
+        box-shadow: 0 6px 20px rgba(60, 64, 67, .16);
+        margin: .9rem 0 1.1rem;
+        padding: .9rem 1rem .35rem;
+    }
+    .cr-control-title {
+        color: #202124;
+        font-size: .92rem;
+        font-weight: 750;
+        margin: 0 0 .45rem;
+    }
+    .cr-control-note {
+        color: #5f6368;
+        font-size: .78rem;
+        margin: 0 0 .65rem;
+    }
+    .cr-map-shell {
+        animation: cr-rise .55s ease-out both;
+        background: #e8f0e3;
+        border: 1px solid #c9d6c5;
+        border-radius: 20px;
+        box-shadow: 0 16px 38px rgba(49, 77, 111, .12);
+        margin: .55rem 0 1.35rem;
+        overflow: hidden;
+        padding: .35rem;
+    }
+    .cr-map-toolbar {
+        align-items: center;
+        background: rgba(255, 255, 255, .96);
+        border: 1px solid #dadce0;
+        border-radius: 12px;
+        color: #5f6368;
+        display: flex;
+        font-size: .78rem;
+        gap: .55rem;
+        margin: .35rem .35rem .65rem;
+        padding: .55rem .75rem;
+    }
+    .cr-map-live-dot {
+        background: #10b981;
+        border-radius: 50%;
+        box-shadow: 0 0 0 4px rgba(16, 185, 129, .12);
+        height: .55rem;
+        width: .55rem;
+    }
+    .cr-map-toolbar strong { color: #202124; }
     [data-testid="stForm"] label {
         color: var(--cr-ink);
         font-size: .85rem;
@@ -116,19 +237,73 @@ st.markdown(
         min-height: 2.8rem;
     }
     .stButton button, [data-testid="stFormSubmitButton"] button {
-        background: linear-gradient(110deg, #2563eb, #1555d6);
+        background: #1a73e8;
         border: 0;
         border-radius: 10px;
         color: white;
         font-weight: 750;
         min-height: 2.8rem;
-        transition: transform .15s ease, box-shadow .15s ease;
+        transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
         width: 100%;
     }
     .stButton button:hover, [data-testid="stFormSubmitButton"] button:hover {
-        box-shadow: 0 8px 18px rgba(37, 99, 235, .22);
+        box-shadow: 0 3px 9px rgba(26, 115, 232, .3);
         color: white;
         transform: translateY(-1px);
+        filter: saturate(1.15);
+    }
+    [data-testid="stSidebar"] {
+        background: rgba(255, 255, 255, .97);
+        border-right: 1px solid #dadce0;
+        box-shadow: 4px 0 18px rgba(60, 64, 67, .12);
+    }
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+    [data-testid="stSidebar"] label,
+    [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
+        color: #53657d !important;
+    }
+    [data-testid="stSidebar"] h2 {
+        color: #17243b;
+        letter-spacing: -.03em;
+    }
+    [data-testid="stSidebar"] [data-testid="stSelectbox"],
+    [data-testid="stSidebar"] [data-testid="stSlider"],
+    [data-testid="stSidebar"] [data-testid="stCheckbox"] {
+        background: #f8f9fa;
+        border: 1px solid #dadce0;
+        border-radius: 14px;
+        margin: .45rem 0 .8rem;
+        padding: .55rem .65rem;
+    }
+    [data-testid="stSidebar"] [data-testid="stSelectbox"] [role="combobox"] {
+        background: #fff;
+        border-color: #bdc1c6;
+        color: #202124;
+    }
+    [data-testid="stSidebar"] [data-testid="stSlider"] [role="slider"] {
+        background: #2563eb;
+    }
+    .cr-studio-card {
+        background: linear-gradient(135deg, #eaf3ff, #e9fbf8);
+        border: 1px solid #d1e4f8;
+        border-radius: 16px;
+        color: #385273;
+        margin: .65rem 0 1rem;
+        padding: .85rem;
+    }
+    .cr-studio-card strong { color: #173c70; }
+    .cr-studio-card small { color: #5b718e; }
+    .cr-divider {
+        background: linear-gradient(90deg, transparent, #dce5f2, transparent);
+        height: 1px;
+        margin: 1.5rem 0;
+    }
+    @keyframes cr-rise {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .cr-title, .cr-subtitle, [data-testid="stForm"] { animation: none; }
     }
     .cr-section-title {
         color: var(--cr-ink);
@@ -139,7 +314,7 @@ st.markdown(
     }
     .cr-section-note { color: var(--cr-muted); font-size: .88rem; margin: 0 0 .8rem; }
     [data-testid="stMetric"] {
-        background: #fff;
+        background: rgba(255, 255, 255, .96);
         border: 1px solid var(--cr-line);
         border-radius: 14px;
         padding: .9rem 1rem;
@@ -166,17 +341,17 @@ st.markdown(
 )
 st.markdown(
     """
+    <div class="cr-brandbar">
+      <div class="cr-brandmark">CR</div>
+      <div><div class="cr-brandname">ConnectRoute</div>
+      <div class="cr-brandtag">Signal-aware journey planning</div></div>
+    </div>
     <div class="cr-eyebrow">ConnectRoute <span aria-hidden="true">/</span> Route intelligence</div>
     <h1 class="cr-title">Plan your journey.<br>See the signal ahead.</h1>
     <p class="cr-subtitle">
       Compare driving routes and explore estimated LTE signal and terrain along the way.
       Start with two places below.
     </p>
-    <div class="cr-status">
-      <span class="cr-status-dot"></span>
-      <span><strong>Research preview:</strong> signal is an illustrative Salzburg-to-India transfer,
-      not validated coverage. Terrain is shown as context, not used to adjust the signal estimate.</span>
-    </div>
     """,
     unsafe_allow_html=True,
 )
@@ -214,6 +389,59 @@ st.caption(
     "Map and routing: OpenStreetMap / OSRM · Tower records: OpenCelliD, CC BY-SA 4.0 · "
     "Elevation: Copernicus DEM GLO-30 DSM"
 )
+with st.container():
+    st.markdown(
+        """
+        <div class="cr-control-card">
+          <div class="cr-control-title">Map controls</div>
+          <div class="cr-control-note">
+            Choose what matters most for your journey and tune the coverage view.
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    priority_column, signal_column, coverage_column = st.columns(
+        [1.15, 1, 1], gap="medium"
+    )
+    with priority_column:
+        route_priority = st.selectbox(
+            "Route priority",
+            ["Balanced", "Best signal", "Lowest outage risk", "Fastest", "Shortest"],
+            help="Controls the transparent route score shown in the comparison table.",
+        )
+    with signal_column:
+        weak_threshold = st.slider(
+            "Weak signal threshold (dBm)",
+            min_value=-115,
+            max_value=-85,
+            value=-100,
+            step=1,
+        )
+        outage_threshold = st.slider(
+            "Outage threshold (dBm)",
+            min_value=-120,
+            max_value=-95,
+            value=-110,
+            step=1,
+        )
+    with coverage_column:
+        hotspot_length_km = st.slider(
+            "Minimum hotspot length (km)",
+            min_value=0.2,
+            max_value=10.0,
+            value=0.5,
+            step=0.1,
+        )
+        show_tower_points = st.checkbox(
+            "Show nearest LTE towers",
+            value=True,
+            help="Displays only towers matched to sampled route points, keeping the map readable.",
+        )
+        show_uncertainty = st.checkbox("Show uncertainty band", value=True)
+if weak_threshold <= outage_threshold:
+    st.error("Weak threshold must be higher than outage threshold.")
+    weak_threshold, outage_threshold = -100, -110
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 BENCHMARK_FILES = {
@@ -372,11 +600,18 @@ def _terrain_profiles(
     }
 
 
-def _route_color(rsrp: float) -> str:
+def _route_color(
+    rsrp: float,
+    *,
+    weak_threshold: float = -100.0,
+    outage_threshold: float = -110.0,
+) -> str:
     if rsrp >= -80:
         return "#15803d"
-    if rsrp >= -100:
+    if rsrp >= weak_threshold:
         return "#eab308"
+    if rsrp >= outage_threshold:
+        return "#f97316"
     return "#dc2626"
 
 
@@ -441,7 +676,6 @@ with st.expander("Salzburg model benchmark", expanded=True):
             "contiguous folds with a 500 m training buffer."
         )
 
-
 if submitted:
     for key in (
         "route_options",
@@ -497,21 +731,20 @@ if routes and route_samples and signal_profiles:
         zip(routes, route_samples, signal_profiles, strict=True),
         start=1,
     ):
-        route_length = float(profile["distance_along_route_m"].iloc[-1])
-        segment_lengths = np.diff(profile["distance_along_route_m"].to_numpy(dtype=float))
-        segment_predictions = profile["predicted_rsrp_dbm"].to_numpy(dtype=float)
-        below_threshold_length = float(
-            np.sum(segment_lengths * (segment_predictions[:-1] < -110.0))
+        metrics = profile_metrics(
+            profile,
+            weak_threshold=weak_threshold,
+            outage_threshold=outage_threshold,
         )
         row: dict[str, float | int | str] = {
             "Route": index,
             "Distance (km)": float(route["distance"]) / 1000,
             "Travel time (min)": float(route["duration"]) / 60,
             "Sampled points": len(samples),
-            "Mean estimated RSRP (dBm)": float(profile["predicted_rsrp_dbm"].mean()),
-            "Estimated route below -110 dBm (%)": (
-                100 * below_threshold_length / route_length if route_length else 0
-            ),
+            "Mean estimated RSRP (dBm)": metrics["mean_rsrp_dbm"],
+            "Estimated route below -110 dBm (%)": 100 * metrics["outage_fraction"],
+            "Weak coverage (%)": 100 * (metrics["weak_fraction"] + metrics["outage_fraction"]),
+            "Longest weak stretch (km)": metrics["longest_weak_stretch_m"] / 1000,
             "Median nearest tower (km)": float(
                 profile["nearest_tower_distance_m"].median() / 1000
             ),
@@ -528,7 +761,7 @@ if routes and route_samples and signal_profiles:
             )
         route_rows.append(row)
 
-    route_table = pd.DataFrame(route_rows)
+    route_table = score_routes(pd.DataFrame(route_rows), priority=route_priority)
     st.markdown('<div class="cr-section-title">Your route options</div>', unsafe_allow_html=True)
     st.markdown(
         '<p class="cr-section-note">Choose a route to inspect its signal profile. '
@@ -537,15 +770,23 @@ if routes and route_samples and signal_profiles:
     )
     with st.expander(f"Compare all {len(routes)} routes", expanded=len(routes) > 1):
         display_columns = [
+            "Rank",
             "Route",
             "Distance (km)",
             "Travel time (min)",
             "Mean estimated RSRP (dBm)",
+            "Weak coverage (%)",
+            "Estimated route below -110 dBm (%)",
+            "Route score",
         ]
         if has_terrain:
             display_columns.append("Median terrain diffraction loss (dB)")
-        display_table = route_table[display_columns].sort_values("Travel time (min)")
+        display_table = route_table[display_columns].round(2)
         st.dataframe(display_table, hide_index=True, width="stretch")
+        st.caption(
+            f"Route score prioritizes **{route_priority.lower()}**. "
+            "Score is a transparent decision aid, not a new prediction model."
+        )
     selected_route_index = st.selectbox(
         "Route to inspect",
         options=list(range(len(routes))),
@@ -558,12 +799,15 @@ if routes and route_samples and signal_profiles:
     )
     selected_route = routes[selected_route_index]
     selected_samples = route_samples[selected_route_index]
-    selected_profile = signal_profiles[selected_route_index]
-    summary_row = route_rows[selected_route_index]
-    range_fraction = float(
-        selected_profile["outside_salzburg_tower_distance_range"].mean()
+    selected_profile = add_dashboard_fields(
+        signal_profiles[selected_route_index],
+        weak_threshold=weak_threshold,
+        outage_threshold=outage_threshold,
     )
-    mean_rsrp = float(selected_profile["predicted_rsrp_dbm"].mean())
+    summary_row = route_table.loc[
+        route_table["Route"].eq(selected_route_index + 1)
+    ].iloc[0]
+    mean_rsrp = float(summary_row["Mean estimated RSRP (dBm)"])
     st.markdown(
         f'<div class="cr-section-title">Route {selected_route_index + 1}</div>'
         f'<p class="cr-section-note">{st.session_state["origin"]["display_name"]} '
@@ -575,15 +819,42 @@ if routes and route_samples and signal_profiles:
     metric_columns[1].metric("Drive time", f"{summary_row['Travel time (min)']:.0f} min")
     metric_columns[2].metric("Avg. estimated RSRP", f"{mean_rsrp:.1f} dBm")
     metric_columns[3].metric(
-        "Median nearest tower",
+        "Route score",
+        f"{summary_row['Route score']:.0f}/100",
+    )
+    st.caption(
+        f"Rank {int(summary_row['Rank'])} for the **{route_priority.lower()}** priority. "
+        f"Median nearest tower: {summary_row['Median nearest tower (km)']:.1f} km."
+    )
+    metric_columns = st.columns(4)
+    metric_columns[0].metric(
+        "Weak coverage",
+        f"{summary_row['Weak coverage (%)']:.1f}%",
+    )
+    metric_columns[1].metric(
+        "Estimated outage",
+        f"{summary_row['Estimated route below -110 dBm (%)']:.1f}%",
+    )
+    metric_columns[2].metric(
+        "Longest weak stretch",
+        f"{summary_row['Longest weak stretch (km)']:.1f} km",
+    )
+    metric_columns[3].metric(
+        "Nearest tower median",
         f"{summary_row['Median nearest tower (km)']:.1f} km",
     )
-    map_column, profile_column = st.columns([1.2, 0.8], gap="large")
+    map_column, profile_column = st.columns((1.15, 0.85), gap="large")
     center = [
         float(selected_profile["latitude"].mean()),
         float(selected_profile["longitude"].mean()),
     ]
-    route_map = folium.Map(location=center, zoom_start=8, control_scale=True)
+    route_map = folium.Map(
+        location=center,
+        zoom_start=8,
+        control_scale=True,
+        tiles="OpenStreetMap",
+        prefer_canvas=True,
+    )
     for route_index, (route, profile) in enumerate(
         zip(routes, signal_profiles, strict=True)
     ):
@@ -600,7 +871,11 @@ if routes and route_samples and signal_profiles:
                         (float(first["latitude"]), float(first["longitude"])),
                         (float(second["latitude"]), float(second["longitude"])),
                     ],
-                    color=_route_color(mean_signal),
+                    color=_route_color(
+                        mean_signal,
+                        weak_threshold=weak_threshold,
+                        outage_threshold=outage_threshold,
+                    ),
                     weight=7,
                     opacity=0.9,
                     tooltip=(
@@ -618,7 +893,11 @@ if routes and route_samples and signal_profiles:
                 folium.CircleMarker(
                     location=(record["latitude"], record["longitude"]),
                     radius=4,
-                    color=_route_color(float(record["predicted_rsrp_dbm"])),
+                    color=_route_color(
+                        float(record["predicted_rsrp_dbm"]),
+                        weak_threshold=weak_threshold,
+                        outage_threshold=outage_threshold,
+                    ),
                     fill=True,
                     fill_opacity=0.85,
                     tooltip=(
@@ -631,6 +910,24 @@ if routes and route_samples and signal_profiles:
                         )
                     ),
                 ).add_to(route_map)
+            if show_tower_points:
+                tower_points = profile.iloc[:: max(1, len(profile) // 35)]
+                for _, tower in tower_points.iterrows():
+                    folium.CircleMarker(
+                        location=(
+                            float(tower["nearest_tower_latitude"]),
+                            float(tower["nearest_tower_longitude"]),
+                        ),
+                        radius=5,
+                        color="#2563eb",
+                        fill=True,
+                        fill_color="#60a5fa",
+                        fill_opacity=0.8,
+                        tooltip=(
+                            f"LTE tower · {float(tower['nearest_tower_distance_m']) / 1000:.2f} km "
+                            f"from route · {int(tower['nearest_tower_samples']):,} samples"
+                        ),
+                    ).add_to(route_map)
         else:
             alternate_coordinates = [
                 (float(latitude), float(longitude))
@@ -669,40 +966,44 @@ if routes and route_samples and signal_profiles:
         padding=(24, 24),
     )
     with map_column:
-        with st.container(border=True):
-            st.markdown("**Signal along the route**")
-            st.caption(
-                "Green ≥ −80 dBm · yellow −100 to −80 dBm · red < −100 dBm"
-            )
-            st.iframe(
-                route_map.get_root().render(),
-                width="stretch",
-                height=540,
-                tab_index=0,
-            )
+        st.markdown(
+            f'<div class="cr-map-toolbar"><span>Signal legend:</span>'
+            f'<strong style="color:#15803d">Strong</strong> · '
+            f'<strong style="color:#eab308">Usable</strong> · '
+            f'<strong style="color:#f97316">Weak</strong> · '
+            f'<strong style="color:#dc2626">Critical</strong>'
+            f'<span>({weak_threshold} / {outage_threshold} dBm thresholds)</span></div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown('<div class="cr-map-shell">', unsafe_allow_html=True)
+        st.iframe(
+            route_map.get_root().render(),
+            width="stretch",
+            height=500,
+            tab_index=0,
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
     with profile_column:
         with st.container(border=True):
-            st.markdown("**Route profile**")
-            signal_tab, terrain_tab = st.tabs(["Signal", "Terrain"])
+            st.markdown("**Route intelligence**")
+            signal_tab, terrain_tab = st.tabs(["Signal profile", "Terrain profile"])
             with signal_tab:
                 st.line_chart(
                     selected_profile,
                     x="distance_along_route_m",
-                    y=[
-                        "predicted_rsrp_dbm",
-                        "estimated_lower_90_dbm",
-                        "estimated_upper_90_dbm",
-                    ],
+                    y=(
+                        [
+                            "predicted_rsrp_dbm",
+                            "estimated_lower_90_dbm",
+                            "estimated_upper_90_dbm",
+                        ]
+                        if show_uncertainty
+                        else ["predicted_rsrp_dbm"]
+                    ),
                     x_label="Distance along route (m)",
                     y_label="Estimated RSRP (dBm)",
-                    height=290,
+                    height=320,
                     width="stretch",
-                )
-                st.caption(
-                    "Bounds are empirical Salzburg residual bands, not local "
-                    "confidence intervals. "
-                    f"{range_fraction:.0%} of points are outside the Salzburg "
-                    "tower-distance range."
                 )
             with terrain_tab:
                 if has_terrain:
@@ -754,12 +1055,109 @@ if routes and route_samples and signal_profiles:
                             st.rerun()
                         except (OSError, ValueError) as error:
                             st.error(f"Could not calculate terrain context: {error}")
-    st.info(
-        "Research preview: the RSRP estimate uses a Salzburg-fitted distance model "
-        "with 2021 India LTE tower records. Terrain is displayed as context only; "
-        "adding these features did not improve buffered Salzburg validation. "
-        "This is not validated coverage for Karnataka."
+    selected_metrics = profile_metrics(
+        selected_profile,
+        weak_threshold=weak_threshold,
+        outage_threshold=outage_threshold,
     )
+    hotspots = find_hotspots(
+        selected_profile,
+        weak_threshold=weak_threshold,
+        minimum_length_m=hotspot_length_km * 1000,
+    )
+    recommendations = recommend_tower_sites(
+        selected_profile,
+        weak_threshold=weak_threshold,
+        minimum_length_m=hotspot_length_km * 1000,
+    )
+    st.markdown('<div class="cr-section-title">Coverage intelligence</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="cr-section-note">Turn the signal profile into decisions: where coverage is weak, '
+        'how long the risk lasts, and where a planning intervention could help.</p>',
+        unsafe_allow_html=True,
+    )
+    coverage_tab, hotspot_tab, planning_tab, data_tab = st.tabs(
+        ["Coverage summary", "Weak-signal hotspots", "Network planning", "Route data"]
+    )
+    with coverage_tab:
+        coverage_columns = st.columns(5)
+        coverage_columns[0].metric("Usable coverage", f"{selected_metrics['usable_fraction']:.1%}")
+        coverage_columns[1].metric("Weak coverage", f"{selected_metrics['weak_fraction']:.1%}")
+        coverage_columns[2].metric("Estimated outage", f"{selected_metrics['outage_fraction']:.1%}")
+        coverage_columns[3].metric(
+            "Longest weak stretch", f"{selected_metrics['longest_weak_stretch_m'] / 1000:.1f} km"
+        )
+        coverage_columns[4].metric("Minimum RSRP", f"{selected_metrics['min_rsrp_dbm']:.1f} dBm")
+        chart_profile = selected_profile[
+            ["distance_along_route_m", "predicted_rsrp_dbm"]
+        ].copy()
+        chart_profile["weak threshold"] = weak_threshold
+        chart_profile["outage threshold"] = outage_threshold
+        st.line_chart(
+            chart_profile,
+            x="distance_along_route_m",
+            y=["predicted_rsrp_dbm", "weak threshold", "outage threshold"],
+            x_label="Distance along route (m)",
+            y_label="RSRP (dBm)",
+            height=300,
+        )
+    with hotspot_tab:
+        if hotspots.empty:
+            st.success("No weak-signal segment meets the selected minimum hotspot length.")
+        else:
+            st.dataframe(
+                hotspots.drop(columns=["Latitude", "Longitude"]).round(2),
+                hide_index=True,
+                width="stretch",
+            )
+            st.caption(
+                "Hotspots group consecutive samples below the weak threshold. "
+                "They are screening indicators, not measured coverage gaps."
+            )
+    with planning_tab:
+        st.warning(
+            "Planning suggestions are heuristic candidate locations. They are not a "
+            "radio-engineering design, propagation guarantee, or land-suitability assessment."
+        )
+        if recommendations.empty:
+            st.success("No candidate tower intervention is suggested for this threshold.")
+        else:
+            st.dataframe(
+                recommendations.drop(columns=["Latitude", "Longitude"]).round(2),
+                hide_index=True,
+                width="stretch",
+            )
+            st.map(
+                recommendations.rename(
+                    columns={"Latitude": "latitude", "Longitude": "longitude"}
+                )[["latitude", "longitude"]],
+                latitude="latitude",
+                longitude="longitude",
+                size=80,
+                color="#2563eb",
+            )
+    with data_tab:
+        export_columns = [
+            "distance_along_route_m",
+            "latitude",
+            "longitude",
+            "predicted_rsrp_dbm",
+            "estimated_lower_90_dbm",
+            "estimated_upper_90_dbm",
+            "nearest_tower_distance_m",
+            "nearest_tower_samples",
+            "signal_band",
+            "below_weak_threshold",
+            "below_outage_threshold",
+        ]
+        st.dataframe(selected_profile[export_columns].round(3), hide_index=True, width="stretch")
+        st.download_button(
+            "Download selected route profile (CSV)",
+            data=selected_profile[export_columns].to_csv(index=False),
+            file_name=f"connectroute_route_{selected_route_index + 1}_profile.csv",
+            mime="text/csv",
+            icon=":material/download:",
+        )
     with st.expander("How this estimate is produced"):
         st.write(
             "The route is sampled at the selected spacing. Each sample is matched "

@@ -1,8 +1,164 @@
-# ConnectRoute 2.0
+# ConnectRoute
 
-Uncertainty-aware, route-level LTE RSRP prediction using open tower and terrain
-data. The project plan in this folder is the source of truth for scope and
-research decisions.
+**Signal-aware journey planning for route-level LTE analysis.**
+
+ConnectRoute compares driving routes using estimated LTE signal strength,
+travel time, distance, outage risk, and terrain context. It combines a
+Streamlit route-planning demo with a reproducible Salzburg research pipeline
+for LTE RSRP prediction.
+
+> **Demo status:** the Karnataka/India route experience is an illustrative
+> transfer. The route estimator uses Indian LTE tower records and a
+> Salzburg-fitted distance model; it is not locally validated Karnataka
+> coverage.
+
+## What the demo includes
+
+- Geocoded origin and destination search with OSRM driving alternatives.
+- Interactive OpenStreetMap/Folium route map with signal-colored segments.
+- Route priorities: **Balanced**, **Best signal**, **Lowest outage risk**,
+  **Fastest**, and **Shortest**.
+- Configurable weak-signal and outage thresholds.
+- Estimated RSRP profile with optional uncertainty band.
+- Terrain elevation and diffraction context.
+- Coverage summary, weak-signal hotspots, and heuristic tower-site candidates.
+- CSV route-profile and GeoJSON route-alternative exports.
+- A research benchmark view for saved Salzburg spatial-validation outputs.
+
+## Quick demo guide
+
+### 1. Install
+
+Python 3.11 or newer is required. From PowerShell:
+
+```powershell
+cd C:\Users\rmegh\OneDrive\Desktop\ConnectRoute_SIC
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -e ".[app,dev]"
+```
+
+### 2. Prepare the India LTE subset
+
+The raw tower snapshot is large and is intentionally not committed to Git.
+After placing `cell_towers_2021.csv.xz` in `data\raw`, run:
+
+```powershell
+.\.venv\Scripts\python.exe -m connectroute.tower_ingest `
+  --country-code 404 405 `
+  --output data\processed\opencellid_india_lte_2021.parquet `
+  --summary results\india_tower_ingest_summary.json
+```
+
+### 3. Start the dashboard
+
+```powershell
+.\.venv\Scripts\python.exe -m streamlit run app\streamlit_app.py `
+  --server.headless true --server.port 8501
+```
+
+Open **http://localhost:8501**.
+
+### 4. Try the demo
+
+1. Keep the default `Bengaluru, Karnataka, India` and `Mysuru, Karnataka,
+   India`, or enter two other places.
+2. Select profile detail (`50 m`, `100 m`, or `200 m`).
+3. Choose a route priority in **Map controls**.
+4. Adjust weak and outage thresholds if needed.
+5. Click **Explore routes**.
+6. Select a route to inspect its map, metrics, signal profile, terrain tab,
+   coverage intelligence, hotspots, planning suggestions, and downloads.
+
+The first geocoding/route request needs internet access. Terrain context is
+optional and may take longer the first time while a DEM tile is downloaded
+and cached locally.
+
+## Methodology in brief
+
+```text
+Raw measurements/towers/terrain
+        ↓
+Cleaning and spatial feature engineering
+        ↓
+Nearest-tower matching and propagation baselines
+        ↓
+Spatially buffered model training and validation
+        ↓
+Route sampling and RSRP estimation
+        ↓
+Route scoring, hotspot detection, and dashboard visualization
+```
+
+The research pipeline uses Salzburg drive-test measurements as the measured
+RSRP target. It builds tower-distance, propagation, and terrain features,
+trains comparison models, and evaluates them with contiguous spatial folds and
+a 500 m buffer. The dashboard samples OSRM routes, matches points to eligible
+Indian LTE records, and applies the illustrative route estimator.
+
+## Where AI/ML is used
+
+The AI/ML implementation is in
+[`src/connectroute/models.py`](src/connectroute/models.py):
+
+- **LightGBM** predicts RSRP directly and learns hybrid residual corrections.
+- **XGBoost** provides a hybrid residual comparison model.
+- **Optuna** tunes model hyperparameters inside training folds.
+- **LightGBM quantile models** estimate lower, median, and upper signal ranges.
+- **Conformal calibration** adjusts uncertainty intervals using held-out
+  calibration folds.
+
+The modeling stage writes predictions and summaries to
+`data\processed\spatial_model_predictions.parquet` and
+`results\model_summary.json`. The live Karnataka route demo primarily uses
+the fitted Salzburg log-distance baseline plus Indian tower locations, rather
+than claiming a fully India-trained validated ML model.
+
+## Repository map
+
+| Path | Purpose |
+|---|---|
+| `app\streamlit_app.py` | Streamlit dashboard and interactive route demo |
+| `src\connectroute\dashboard.py` | Testable route scoring and coverage analytics |
+| `src\connectroute\routing.py` | Geocoding, OSRM alternatives, and route sampling |
+| `src\connectroute\route_predict.py` | Route signal estimation |
+| `src\connectroute\models.py` | LightGBM/XGBoost/quantile modeling |
+| `src\connectroute\route_terrain.py` | DEM preparation and terrain profiles |
+| `experiments\run_pipeline.ps1` | Full reproducible research pipeline |
+| `experiments\compare_terrain_features.py` | Buffered terrain-feature comparison |
+| `tests\` | Automated unit and regression tests |
+
+## Validation
+
+Run the focused automated suite:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+The dashboard analytics and route-scoring tests should pass before publishing
+changes. Use `MPLBACKEND=Agg` in environments where Matplotlib otherwise
+selects an unavailable GUI backend.
+
+## Publishing checklist
+
+Before pushing to GitHub:
+
+1. Confirm `.env`, `.streamlit\secrets.toml`, raw downloads, processed data,
+   and results are ignored.
+2. Never commit API tokens, passwords, or personal credentials.
+3. Run the tests and a Streamlit HTTP smoke check.
+4. Review `git diff` and `git status`.
+5. Commit source code, tests, documentation, and small metadata only.
+6. Push to a repository you own or have permission to update.
+
+The large datasets are excluded by `.gitignore`; a fresh clone must follow the
+data preparation instructions above.
+
+---
+
+The detailed research scope, data provenance, modeling assumptions, and
+pipeline commands follow below.
 
 ## Research scope and guardrails
 
@@ -119,6 +275,14 @@ local India tower subset. It displays the signal profile and route map as soon
 as signal estimates are ready. Optional elevation and terrain profiles can be
 calculated from the Terrain tab; first use may take longer while route DEM data
 is prepared. Generate the India subset from the downloaded snapshot with:
+
+The dashboard also includes a route-priority scorecard (balanced, signal-first,
+outage-first, fastest, or shortest), configurable weak/outage thresholds,
+distance-weighted coverage metrics, signal-colored route segments, matched LTE
+tower overlays, uncertainty-band visibility, weak-signal hotspot detection,
+heuristic tower-site recommendations, terrain context, and CSV/GeoJSON exports.
+The scorecard and tower recommendations are decision-support heuristics; they
+do not replace a validated coverage model or radio-network design.
 
 ```powershell
 .\.venv\Scripts\python.exe -m connectroute.tower_ingest --country-code 404 405 `
